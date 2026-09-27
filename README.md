@@ -22,10 +22,20 @@ python3 -m unittest discover -s tests -v
 
 ## 现在的行为
 
-- `decode` 只按声明长度切片，**不校验**长度与内容是否一致：`3:hello,` 会错位到后面的字节上再报
-  「缺少冒号」，`5:hello` 干脆忽略缺失的逗号直接返回内容。
-- 没有偏移信息：所有错误都只有一句话。
-- 不处理前导零与 `+`/空白等非法长度写法；也不做流式（调用方必须整串传进来）。
+- 严格校验：长度不符、缺结尾逗号、非法长度（`+5`、`0x5`、空白、负号等）都报错，
+  错误一律带「第 N 条 + 字节偏移」，例如 `第 0 条：长度不符（声明 3，实际 5）（偏移 7）`。
+- 前导零合法（`05:hello,`），`0:,` 是合法的空条目，空输入返回空列表。
+- 流式：`NetstringDecoder` 增量喂数据、喂一块解一块，内存占用只与当前这一条的长度相关：
+
+  ```python
+  from netstring.codec import NetstringDecoder
+  decoder = NetstringDecoder()
+  items = decoder.feed(chunk)   # 返回本次解出的完整条目
+  items = decoder.finish()      # 收尾；尾部不完整则抛 NetstringError
+  ```
+
+- `netstring/reference.py` 是逐字节状态机的参考实现，测试里用它与主实现
+  对样例和随机流（含畸形）逐条比对结果与错误偏移。
 
 ## 计划新增的能力
 
@@ -46,6 +56,7 @@ items=1
 
 ```
 netstring/codec.py   编解码与校验
+netstring/reference.py  逐字节状态机参考实现（测试对照用）
 netstring/cli.py     命令行入口
 tests/               unittest 用例
 ```
